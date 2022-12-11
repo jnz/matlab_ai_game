@@ -10,17 +10,20 @@ KB = zeros(intmax('uint8'), 1);
 cleanup_figures   = onCleanup(@() eval('close all'));
 cleanup_functions = onCleanup(@() eval('clear functions'));
 
+% This figure will be updated on every frame to
+% draw the current game state
 h = figure(1);
 set(h, 'DeleteFcn', @helper_StopLoopFcn);
 set(h, 'KeyPressFcn',@helper_keyDownListener);
 set(h, 'KeyReleaseFcn', @helper_keyUpListener);
 clf;
 
-gamestate.h = h; % Figure handle
+gamestate.h = h; % Save figure handle
 gamestate.width = 50;
 gamestate.height = 50;
-gamestate = gameInit(gamestate);
+gamestate = gameInit(gamestate); % this struct represents the game state
 
+% Make the figure a bit nicer
 xlim([0 gamestate.width ]);
 ylim([0 gamestate.height]);
 axis equal;
@@ -32,15 +35,12 @@ box on;
 
 dt_sec = 0.1;
 
-dataHist = [];
+dataHist = []; % save every state and every action for later training
 
-nn = nnInit();
+nn = nnInit(); % initialize neural network
 
-inputLayer = [ ...
- 5.000 40.000  0.000 10.000 40.000  0.000 15.000 40.000  0.000 20.000 40.000  0.000 25.000 40.000  0.000 30.000 40.000  0.000 35.000 40.000  0.000 40.000 27.000 10.000 29.000 10.000  ];
-outputNN = nnInput(nn, inputLayer);
-
-AI_ENABLED = true;
+AI_ENABLED = true; % if this is true: let the AI play, otherwise: play yourself
+% and generate training data
 
 while RUN_MAIN_LOOP == true
 
@@ -63,7 +63,6 @@ while RUN_MAIN_LOOP == true
 
     gameDraw(gamestate);
     pause(dt_sec);
-
 
     fprintf('Input layer: ');
     fprintf('%.1f ', inputLayer);
@@ -305,15 +304,17 @@ b1 = [ -1.597 -0.753  0.098  ];
 nn.W0 = W0';
 nn.b0 = b0';
 nn.f0 = @relu;
+nn.f0_derivative = @relu_derivative;
 nn.W1 = W1';
 nn.b1 = b1';
-nn.f1 = @sigmoid;
+nn.f1 = @relu;
+nn.f1_derivative = @sigmoid_derivative;
 
 end
 
 function [outputNN] = nnInput(nn, inputLayer)
 
-z0 = nn.W0*inputLayer' + nn.b0;
+z0 = nn.W0*inputLayer + nn.b0;
 a1 = nn.f0(z0);
 z1 = nn.W1*a1 + nn.b1;
 outputNN = nn.f1(z1);
@@ -326,9 +327,68 @@ y = ( 1 + exp(-x) ).^(-1);
 
 end
 
+function [y] = sigmoid_derivative(x)
+
+t = sigmoid(x);
+y = t.*(1-t);
+
+end
+
 function [y] = relu(x)
 
 leak = 0.0;
 y = max(x*leak, x);
+
+end
+
+function [y] = relu_derivative(x)
+
+y = x;
+leak = 0.0;
+y(y >= 0) = 1;
+y(y < 0) = leak;
+
+end
+
+function [nn] = nnTrain(nn)
+
+alpha = 0.1;
+
+% Save neural net
+% W0 = nn.W0;
+% W1 = nn.W1;
+% save('nnsave.mat','w_1','w_2');
+
+% Backpropagation:
+% Now we have the cost function C.
+% what we want to do is to change the weights and biases
+% with the highest influence on the cost function C.
+% the highest influence of w and b on C is given by the
+% derivatives dC_dw and dC_db.
+% if we can calculate dC_dw and dC_db we can update all the
+% weights and biases.
+
+% backpropagation is basically a clever way to calculate
+% dC_dw/dC_db with the chain rule from the end to the front.
+
+epochs = 10;
+for i=1:epochs
+    % Layer 2
+    betaW1 = (a2 - y).*nn.f1_derivative(z2);
+    dC_dw_1 = betaW1*a1';
+    dC_db_1 = betaW1;
+
+    % Layer 1
+    betaW0 = nn.W1'*betaW1.*nn.f0_derivative(z1);
+    dC_dw_0 = betaW0*a0';
+    dC_db_0 = betaW0;
+
+    % Update W and B
+    nn.W1 = nn.W1 - alpha*dC_dw_1;
+    nn.W0 = nn.W0 - alpha*dC_dw_1;
+    nn.b1 = nn.b1 - alpha*dC_db_1;
+    nn.b0 = nn.b0 - alpha*dC_db_0;
+
+end
 
 end

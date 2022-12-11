@@ -1,3 +1,6 @@
+# This script takes the actions of a human player and trains a small
+# neural network to play.
+
 import numpy as np
 # import tensorflow as tf
 # from tensorflow import keras 
@@ -6,12 +9,15 @@ from keras.layers import Dense
 
 # Variablen xtrain (Input, dimension XXX) u. ytrain (erwarteter Output)
 
-dataset=np.loadtxt("data.csv", delimiter=",")
+dataset=np.loadtxt("humanplayer.csv", delimiter=",")
 # split into input (X) and output (Y) variables
-xtrain=dataset[:,0:26]
-ytrain=dataset[:,26:]
+xtrain=dataset[:,0:26]  # input state
+ytrain=dataset[:,26:]   # expected output action
 
-# set column 25 (velocity) to zero
+# set column 25 (velocity) to zero, as velocity is already
+# basically the output from the human player input, we don't
+# want to train. This is basically a bug in the training
+# data set of humanplayer.csv
 xtrain[:,25] = 0
 
 inputLayerSize = xtrain.shape[1];
